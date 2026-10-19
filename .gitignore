@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Local databases and runtime data
+*.sqlite
+*.sqlite3
+*.db
+
+# Frontend dependencies and generated output
+frontend/node_modules/
+frontend/dist/
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
