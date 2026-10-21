@@ -1,0 +1,45 @@
+worker_processes 1;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include mime.types;
+    default_type application/octet-stream;
+    sendfile on;
+
+    server {
+        listen 80;
+        server_name www.my-do.kro.kr;
+        root html;
+        index index.html;
+        client_max_body_size 10m;
+
+        location /api/ {
+            # Preserve /api: FastAPI registers its routers with this prefix.
+            # Generated from .env.production during npm run build.
+            proxy_pass __BACKEND_ORIGIN__;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location = /posts {
+            try_files /doji.html =404;
+        }
+
+        location /posts/ {
+            try_files $uri /doji.html;
+        }
+
+        location /assets/ {
+            try_files $uri =404;
+        }
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+    }
+}
