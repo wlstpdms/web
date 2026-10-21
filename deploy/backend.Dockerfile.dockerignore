@@ -1,0 +1,7 @@
+**
+!requirements.txt
+!app/
+!app/**
+app/**/*.sqlite
+app/**/*.db
+app/**/__pycache__/
