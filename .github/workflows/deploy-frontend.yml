@@ -1,0 +1,95 @@
+name: Deploy frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'deploy/frontend.Dockerfile*'
+      - 'deploy/nginx.conf.template'
+      - 'deploy/restart-container.sh'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-frontend-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      COMPONENT: frontend
+      DEPLOY_SHA: ${{ github.sha }}
+      RELEASE_DIR: /tmp/ai02-frontend-${{ github.run_id }}-${{ github.run_attempt }}
+      SERVICE_PORT: ${{ vars.FRONTEND_HTTP_PORT || '80' }}
+      BACKEND_UPSTREAM: ${{ vars.BACKEND_UPSTREAM || '127.0.0.1:8000' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate SSH configuration
+        env:
+          SSH_HOST: ${{ secrets.FRONTEND_SSH_HOST }}
+          SSH_PORT: ${{ secrets.FRONTEND_SSH_PORT }}
+          SSH_USERNAME: ${{ secrets.FRONTEND_SSH_USERNAME }}
+          SSH_PASSWORD: ${{ secrets.FRONTEND_SSH_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for key in SSH_HOST SSH_PORT SSH_USERNAME SSH_PASSWORD; do
+            if [ -z "${!key}" ]; then
+              echo "::error::Set FRONTEND_$key in repository Actions secrets."
+              exit 1
+            fi
+          done
+          bash -n deploy/restart-container.sh
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.3'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build deployment image
+        run: |
+          docker build --tag "ai02-$COMPONENT:$DEPLOY_SHA" --file "deploy/$COMPONENT.Dockerfile" .
+          docker save --output image.tar "ai02-$COMPONENT:$DEPLOY_SHA"
+
+      - name: Transfer image and deployment script
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.FRONTEND_SSH_HOST }}
+          port: ${{ secrets.FRONTEND_SSH_PORT }}
+          username: ${{ secrets.FRONTEND_SSH_USERNAME }}
+          password: ${{ secrets.FRONTEND_SSH_PASSWORD }}
+          fingerprint: ${{ secrets.FRONTEND_SSH_FINGERPRINT }}
+          source: image.tar,deploy/restart-container.sh
+          target: ${{ env.RELEASE_DIR }}
+          timeout: 60s
+          command_timeout: 15m
+
+      - name: Restart and check frontend
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.FRONTEND_SSH_HOST }}
+          port: ${{ secrets.FRONTEND_SSH_PORT }}
+          username: ${{ secrets.FRONTEND_SSH_USERNAME }}
+          password: ${{ secrets.FRONTEND_SSH_PASSWORD }}
+          fingerprint: ${{ secrets.FRONTEND_SSH_FINGERPRINT }}
+          envs: COMPONENT,DEPLOY_SHA,RELEASE_DIR,SERVICE_PORT,BACKEND_UPSTREAM
+          command_timeout: 10m
+          script: |
+            set -eu
+            bash "$RELEASE_DIR/deploy/restart-container.sh"

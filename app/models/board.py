@@ -7,3 +7,4 @@ class Board(Base):
     idx: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column()
     contents: Mapped[str] = mapped_column()
+    image_url: Mapped[str | None] = mapped_column(nullable=True)

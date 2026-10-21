@@ -1,0 +1,82 @@
+name: Deploy backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'requirements.txt'
+      - 'deploy/backend.Dockerfile*'
+      - 'deploy/restart-container.sh'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-backend-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      COMPONENT: backend
+      DEPLOY_SHA: ${{ github.sha }}
+      RELEASE_DIR: /tmp/ai02-backend-${{ github.run_id }}-${{ github.run_attempt }}
+      SERVICE_PORT: ${{ vars.BACKEND_HTTP_PORT || '8000' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate SSH configuration
+        env:
+          SSH_HOST: ${{ secrets.BACKEND_SSH_HOST }}
+          SSH_PORT: ${{ secrets.BACKEND_SSH_PORT }}
+          SSH_USERNAME: ${{ secrets.BACKEND_SSH_USERNAME }}
+          SSH_PASSWORD: ${{ secrets.BACKEND_SSH_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for key in SSH_HOST SSH_PORT SSH_USERNAME SSH_PASSWORD; do
+            if [ -z "${!key}" ]; then
+              echo "::error::Set BACKEND_$key in repository Actions secrets."
+              exit 1
+            fi
+          done
+          bash -n deploy/restart-container.sh
+
+      - name: Build deployment image
+        run: |
+          docker build --tag "ai02-$COMPONENT:$DEPLOY_SHA" --file "deploy/$COMPONENT.Dockerfile" .
+          docker save --output image.tar "ai02-$COMPONENT:$DEPLOY_SHA"
+
+      - name: Transfer image and deployment script
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.BACKEND_SSH_HOST }}
+          port: ${{ secrets.BACKEND_SSH_PORT }}
+          username: ${{ secrets.BACKEND_SSH_USERNAME }}
+          password: ${{ secrets.BACKEND_SSH_PASSWORD }}
+          fingerprint: ${{ secrets.BACKEND_SSH_FINGERPRINT }}
+          source: image.tar,deploy/restart-container.sh
+          target: ${{ env.RELEASE_DIR }}
+          timeout: 60s
+          command_timeout: 15m
+
+      - name: Restart and check backend
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.BACKEND_SSH_HOST }}
+          port: ${{ secrets.BACKEND_SSH_PORT }}
+          username: ${{ secrets.BACKEND_SSH_USERNAME }}
+          password: ${{ secrets.BACKEND_SSH_PASSWORD }}
+          fingerprint: ${{ secrets.BACKEND_SSH_FINGERPRINT }}
+          envs: COMPONENT,DEPLOY_SHA,RELEASE_DIR,SERVICE_PORT
+          command_timeout: 10m
+          script: |
+            set -eu
+            bash "$RELEASE_DIR/deploy/restart-container.sh"
