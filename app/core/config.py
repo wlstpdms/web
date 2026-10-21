@@ -7,6 +7,8 @@ class Settings(BaseSettings):
 
     SECRET_KEY: str = "my-secret-key-for-jwt-must-be-32-bytes-or-more"
     ALGORITHM: str = "HS256"
+    COOKIE_DOMAIN: str | None = None
+    COOKIE_SECURE: bool = False
     DATABASE_URL: str = "sqlite:///db.sqlite"
     KAKAO_REST_API_KEY: str = ""
     KAKAO_CLIENT_SECRET: str = ""

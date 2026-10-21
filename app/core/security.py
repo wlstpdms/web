@@ -11,7 +11,6 @@ def createToken(userId: str):
         "sub": userId,
         "exp": datetime.now(timezone.utc) + timedelta(minutes=30),
     }
-    print(settings.SECRET_KEY)
     return  jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 # 토큰 확인하는 함수

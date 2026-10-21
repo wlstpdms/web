@@ -35,8 +35,10 @@ def login(req: LoginReq, res: Response, db: Session = Depends(get_db)):
                 "EN_AT",
                 createToken(user.email),
                 httponly=True,
-                secure=settings.KAKAO_REDIRECT_URI.startswith("https://"),
-                samesite="lax"
+                secure=settings.COOKIE_SECURE,
+                samesite="lax",
+                domain=settings.COOKIE_DOMAIN or None,
+                path="/",
             )
             print("Login Successful")
             return LoginRes(email=user.email)

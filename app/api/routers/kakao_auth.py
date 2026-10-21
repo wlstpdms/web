@@ -62,7 +62,8 @@ def _set_kakao_state_cookie(res: Response, state: str) -> None:
         "KAKAO_OAUTH_STATE",
         state,
         httponly=True,
-        secure=settings.KAKAO_REDIRECT_URI.startswith("https://"),
+        secure=settings.COOKIE_SECURE,
+        domain=settings.COOKIE_DOMAIN or None,
         samesite="lax",
         max_age=600,
         path="/",
@@ -124,7 +125,10 @@ def kakao_callback(
         req.state, request.cookies.get("KAKAO_OAUTH_STATE", "")
     ):
         raise HTTPException(status_code=400, detail="Kakao login request expired or is invalid.")
-    res.delete_cookie("KAKAO_OAUTH_STATE", path="/")
+    res.delete_cookie(
+        "KAKAO_OAUTH_STATE", path="/", domain=settings.COOKIE_DOMAIN or None,
+        secure=settings.COOKIE_SECURE, httponly=True, samesite="lax",
+    )
 
     token_params = {
         "grant_type": "authorization_code",
@@ -187,7 +191,9 @@ def kakao_callback(
         "EN_AT",
         createToken(user.email),
         httponly=True,
-        secure=settings.KAKAO_REDIRECT_URI.startswith("https://"),
+        secure=settings.COOKIE_SECURE,
+        domain=settings.COOKIE_DOMAIN or None,
+        path="/",
         samesite="lax",
     )
     return KakaoLoginRes(name=user.name)

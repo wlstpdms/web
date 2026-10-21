@@ -1,8 +1,9 @@
-// Vite proxies /api to the local FastAPI service at 127.0.0.1:8000.
-export const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
+import { apiUrl } from './config.js'
+
+export { apiBaseUrl } from './config.js'
 
 export async function api(path, options = {}) {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(apiUrl(path), {
     ...options,
     credentials: 'include',
     headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
@@ -20,7 +21,7 @@ export async function api(path, options = {}) {
 }
 
 export async function uploadProductImage(file) {
-  const response = await fetch(`${apiBaseUrl}/board/images`, {
+  const response = await fetch(apiUrl('/board/images'), {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': file.type },

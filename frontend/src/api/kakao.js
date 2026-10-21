@@ -1,5 +1,5 @@
-import { apiBaseUrl } from './index.js'
+import { apiUrl } from './config.js'
 
 export function startKakaoAuth() {
-  window.location.assign(`${apiBaseUrl}/api/user/kakao/authorize`)
+  window.location.assign(apiUrl('/user/kakao/authorize'))
 }
